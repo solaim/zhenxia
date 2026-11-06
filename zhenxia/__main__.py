@@ -8,6 +8,7 @@ from pathlib import Path
 import uvicorn
 import yaml
 
+from . import features
 from .adapter import load_config
 from .app import build_app
 from .runtime import configure_runtime, frozen, user_directory
@@ -30,7 +31,10 @@ def main():
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int)
     parser.add_argument('--no-browser', action='store_true')
+    parser.add_argument('--enable-bangumi', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.enable_bangumi:
+        features.enable_bangumi()
     desktop = frozen()
     config_path = Path(args.config or (user_directory() / 'config.yml' if desktop else 'data/config.yml')).resolve()
     config_path.parent.mkdir(parents=True, exist_ok=True)

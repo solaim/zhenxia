@@ -41,11 +41,9 @@ Open [http://localhost:8000](http://localhost:8000). Configuration is created au
 | YouTube | Individual videos, Shorts, and short video links |
 | TikTok | Individual videos and short share links |
 | X / Twitter | Videos in posts |
-| Bilibili | BV / av videos and bangumi episodes (`/bangumi/play/ep…`) |
+| Bilibili | BV / av video links |
 
 When login is required, import cookies for that platform in Settings. Douyin accepts a Cookie request header; other platforms accept Netscape-format cookie file contents. TikTok also offers a login window in Settings.
-
-Bangumi links download only the linked episode; season (`ss`) links are not supported. Import Bilibili cookies in Settings for content requiring login or membership; your account must have access.
 
 Some videos may be unavailable due to platform verification, region, account permissions, or network restrictions. Live streams are not supported. Only download content you have permission to save.
 

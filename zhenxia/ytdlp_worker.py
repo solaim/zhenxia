@@ -8,7 +8,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.postprocessor import PostProcessor
 from yt_dlp.utils import DownloadError
 
-from .platforms import EXTRACTORS
+from .platforms import allowed_extractors
 
 MAX_BYTES = 2 * 1024 ** 3
 
@@ -88,7 +88,7 @@ def download(request):
         'postprocessor_hooks': [lambda e: emit({'phase': 'processing'})],
         'quiet': True, 'no_warnings': True, 'logger': QuietLogger(),
         'cachedir': False, 'overwrites': False,
-        'allowed_extractors': EXTRACTORS[request['platform']],
+        'allowed_extractors': allowed_extractors(request['platform']),
         'js_runtimes': {'node': {}}, 'remote_components': [],
         'windowsfilenames': True,
     }

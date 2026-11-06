@@ -2,6 +2,8 @@
 import re
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+from . import features
+
 PLATFORMS = {
     'douyin': '抖音 / Douyin', 'youtube': 'YouTube', 'tiktok': 'TikTok',
     'x': 'X / Twitter', 'bilibili': '哔哩哔哩 / Bilibili',
@@ -12,8 +14,15 @@ COOKIE_DOMAINS = {
 }
 EXTRACTORS = {
     'youtube': ['Youtube'], 'tiktok': ['TikTok', 'vm.tiktok'],
-    'x': ['twitter', 'twitter:amplify', 'twitter:card'], 'bilibili': ['BiliBili', 'BiliBiliBangumi'],
+    'x': ['twitter', 'twitter:amplify', 'twitter:card'], 'bilibili': ['BiliBili'],
 }
+
+
+def allowed_extractors(platform):
+    extractors = list(EXTRACTORS[platform])
+    if platform == 'bilibili' and features.BANGUMI_ENABLED:
+        extractors.append('BiliBiliBangumi')
+    return extractors
 
 
 def normalize_link(text):
@@ -55,6 +64,8 @@ def normalize_link(text):
     for platform, hosts, pattern in routes:
         if host in hosts:
             if re.fullmatch(pattern, path):
+                if platform == 'bilibili' and path.startswith('/bangumi/') and not features.BANGUMI_ENABLED:
+                    raise ValueError('请使用单个视频链接，暂不支持频道、播放列表或直播')
                 canonical = {'x': 'x.com', 'bilibili': 'www.bilibili.com'}.get(platform, host)
                 return platform, 'https://' + canonical + path
             raise ValueError('请使用单个视频链接，暂不支持频道、播放列表或直播')

@@ -366,6 +366,9 @@ async def test_adapter_profile_download_uses_installed_factory(tmp_path, monkeyp
     'https://www.bilibili.com/bangumi/play/ep409983?from_spmid=666.25.episode.0',
 ])
 def test_multiplatform_dispatch_and_resource_relation(client, tmp_path, monkeypatch, url):
+    if '/bangumi/' in url:
+        from zhenxia import features
+        monkeypatch.setattr(features, 'BANGUMI_ENABLED', True)
     from zhenxia.platforms import normalize_link
     platform, canonical = normalize_link(url)
     async def download(actual_platform, actual_url):
@@ -463,3 +466,15 @@ def test_vimeo_removed(client):
     assert 'vimeo' not in [p['id'] for p in client.get('/api/v1/settings').json()['platforms']]
     assert client.post('/api/v1/download', json={'url': 'https://vimeo.com/123456'}).status_code == 400
     assert client.put('/api/v1/settings/cookies/vimeo', json={'cookie': ''}).status_code == 400
+
+
+def test_bangumi_blocked_by_default_bv_still_accepted(client, monkeypatch):
+    from zhenxia import features
+    monkeypatch.setattr(features, 'BANGUMI_ENABLED', False)
+    async def download(platform, url):
+        return {'total': 1, 'success': 1}
+    monkeypatch.setattr(client.app.state.multi_engine, 'download', download)
+    assert client.post('/api/v1/download', json={'url': 'https://www.bilibili.com/bangumi/play/ep409983'}).status_code == 400
+    assert client.get('/api/v1/jobs').json()['jobs'] == []
+    assert client.post('/api/v1/download', json={'url': 'https://www.bilibili.com/video/BV1xx411c7mD'}).status_code == 200
+    assert 'bangumi' not in client.get('/api/v1/settings').text.lower()

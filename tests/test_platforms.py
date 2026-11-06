@@ -27,7 +27,10 @@ from zhenxia.ytdlp import YtDlpEngine
     ('https://m.bilibili.com/bangumi/play/ep409983/', 'bilibili', 'https://www.bilibili.com/bangumi/play/ep409983'),
     ('复制打开抖音 https://www.douyin.com/video/123?x=y 看视频', 'douyin', 'https://www.douyin.com/video/123'),
 ])
-def test_normalize(url, platform, expected):
+def test_normalize(url, platform, expected, monkeypatch):
+    if '/bangumi/' in url:
+        from zhenxia import features
+        monkeypatch.setattr(features, 'BANGUMI_ENABLED', True)
     assert normalize_link(url) == (platform, expected)
 
 
@@ -149,6 +152,9 @@ async def test_cancel_kills_worker_and_cleans_staging(tmp_path, monkeypatch):
      r'https://www\.bilibili\.com/bangumi/play/ep(?P<id>[0-9]+)'),
 ])
 def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monkeypatch, platform, url, extractor_key, pattern):
+    if '/bangumi/' in url:
+        from zhenxia import features
+        monkeypatch.setattr(features, 'BANGUMI_ENABLED', True)
     from yt_dlp import YoutubeDL
     from yt_dlp.extractor.common import InfoExtractor
 
@@ -284,16 +290,19 @@ def test_x_embedded_video_extractors_enabled_without_generic():
         assert 'Generic' not in ydl._ies
 
 
-def test_bilibili_bangumi_extractor_enabled_without_season_or_generic():
+@pytest.mark.parametrize('enabled', [False, True])
+def test_bilibili_bangumi_extractor_enabled_without_season_or_generic(monkeypatch, enabled):
+    from zhenxia import features
+    monkeypatch.setattr(features, 'BANGUMI_ENABLED', enabled)
     from yt_dlp import YoutubeDL
     from yt_dlp.extractor.bilibili import BiliBiliBangumiIE
 
-    from zhenxia.platforms import EXTRACTORS
+    from zhenxia.platforms import allowed_extractors
 
     url = 'https://www.bilibili.com/bangumi/play/ep409983'
     assert BiliBiliBangumiIE.suitable(url)
-    with YoutubeDL({'quiet': True, 'allowed_extractors': EXTRACTORS['bilibili']}) as ydl:
+    with YoutubeDL({'quiet': True, 'allowed_extractors': allowed_extractors('bilibili')}) as ydl:
         assert 'BiliBili' in ydl._ies
-        assert 'BiliBiliBangumi' in ydl._ies
+        assert ('BiliBiliBangumi' in ydl._ies) == enabled
         assert 'BiliBiliBangumiSeason' not in ydl._ies
         assert 'Generic' not in ydl._ies
