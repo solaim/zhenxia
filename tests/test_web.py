@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 
@@ -15,7 +16,7 @@ from zhenxia.store import Store
 @pytest.fixture
 def client(tmp_path):
     config_file = tmp_path / 'config.yml'
-    config_file.write_text('cookies: ""\n')
+    config_file.write_text('cookies: ""\n', encoding='utf-8')
     config = ConfigLoader(str(config_file))
     config.update(path=str(tmp_path / 'media'))
     with TestClient(build_app(config)) as client:
@@ -31,7 +32,7 @@ def test_home_and_static(client):
 def test_library_preview_range_and_trash(client, tmp_path):
     media = tmp_path / 'media'
     (media / '示例.mp4').write_bytes(b'0123456789')
-    (media / 'secret.json').write_text('secret')
+    (media / 'secret.json').write_text('secret', encoding='utf-8')
     (media / 'escape.mp4').symlink_to(tmp_path / 'config.yml')
     client.post('/api/v1/resources/scan')
     data = client.get('/api/v1/resources').json()
@@ -82,7 +83,7 @@ def test_share_text_and_cookie_persistence(client, tmp_path):
     assert response.status_code == 200
     assert client.get('/api/v1/settings').json()['cookie_configured']
     assert 'secret' not in client.get('/api/v1/settings').text
-    assert 'secret' in (tmp_path / '.cookies.json').read_text()
+    assert 'secret' in (tmp_path / '.cookies.json').read_text(encoding='utf-8')
     assert client.put('/api/v1/settings/cookie', json={'cookie':''}).status_code == 200
     assert not client.get('/api/v1/settings').json()['cookie_configured']
 
@@ -180,7 +181,7 @@ async def test_browser_stream_saves_mp4_and_cleans_temporary_files(tmp_path, mon
             result = await module.download_video('123', tmp_path, {'ttwid': 'test'})
             assert result['success'] == 1
             assert (tmp_path / '123.mp4').read_bytes() == content
-            assert json.loads((tmp_path / '123.info.json').read_text())['title'] == 'Test title'
+            assert json.loads((tmp_path / '123.info.json').read_text(encoding='utf-8'))['title'] == 'Test title'
             result = await module.download_video('123', tmp_path, {})
             assert result['skipped'] == 1
         else:
@@ -197,7 +198,7 @@ def test_legacy_json_migration_is_idempotent_and_keeps_backup(tmp_path):
     from zhenxia.store import now
     history = tmp_path / 'web-jobs.json'
     history.write_text(json.dumps([{'job_id':'old1','url':'https://www.douyin.com/video/123',
-                                   'status':'success','created_at':now(), 'total':1, 'success':1}]))
+                                   'status':'success','created_at':now(), 'total':1, 'success':1}]), encoding='utf-8')
     original = history.read_bytes()
     store = Store(tmp_path / 'db.sqlite')
     assert store.migrate_legacy(history) == 1
@@ -211,7 +212,7 @@ def test_pagination_search_missing_files_and_metadata(tmp_path):
     library = Library(tmp_path / 'media', store)
     for i in range(4):
         (library.root / (str(i) + '.mp4')).write_bytes(b'video')
-    (library.root / '0.info.json').write_text(json.dumps({'id':'123','title':'中文标题','author':'作者'}))
+    (library.root / '0.info.json').write_text(json.dumps({'id':'123','title':'中文标题','author':'作者'}), encoding='utf-8')
     library.scan()
     assert library.list(limit=2)['total'] == 4
     assert len(library.list(limit=2, offset=2)['items']) == 2
@@ -297,7 +298,7 @@ def test_engine_is_installed_dependency_and_can_construct_downloader(tmp_path):
     from zhenxia.adapter import Engine, load_config
 
     config_path = tmp_path / 'config.yml'
-    config_path.write_text('cookies: ""\n')
+    config_path.write_text('cookies: ""\n', encoding='utf-8')
     config = load_config(config_path)
     config.update(path=str(tmp_path / 'media'))
     engine = Engine(config, tmp_path)
@@ -324,11 +325,11 @@ def test_legacy_resource_associations_are_migrated_once(tmp_path):
 
 def test_invalid_legacy_json_does_not_mark_migration_complete(tmp_path):
     history = tmp_path / 'web-jobs.json'
-    history.write_text('invalid')
+    history.write_text('invalid', encoding='utf-8')
     store = Store(tmp_path / 'db.sqlite')
     with pytest.raises(ValueError):
         store.migrate_legacy(history)
-    history.write_text('[]')
+    history.write_text('[]', encoding='utf-8')
     assert store.migrate_legacy(history) == 0
     with store.connect() as db:
         assert db.execute('SELECT 1 FROM schema_migrations WHERE version=2').fetchone()
@@ -418,7 +419,8 @@ def test_transcript_settings_keep_clear_and_never_expose_key(client, tmp_path, m
     client.put('/api/v1/settings/transcript',json=settings)
     monkeypatch.delenv('OPENAI_API_KEY')
     assert not client.get('/api/v1/settings').json()['transcript']['key_configured']
-    assert (tmp_path/'config.yml').stat().st_mode & 0o777 == 0o600
+    if os.name == 'posix':
+        assert (tmp_path/'config.yml').stat().st_mode & 0o777 == 0o600
     settings['api_url'] = 'file:///etc/passwd'
     assert client.put('/api/v1/settings/transcript',json=settings).status_code == 400
 

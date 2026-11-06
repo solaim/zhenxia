@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory() as temporary:
     subprocess.run([str(exe), '--ytdlp-worker'], input=json.dumps({
         'platform': 'unsupported', 'url': 'https://example.invalid/', 'directory': str(root)}),
         text=True, check=True, timeout=60)
-    assert json.loads((root / 'result.json').read_text()).get('error')
+    assert json.loads((root / 'result.json').read_text(encoding='utf-8')).get('error')
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]

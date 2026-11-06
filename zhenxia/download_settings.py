@@ -8,7 +8,7 @@ from pathlib import Path
 class DownloadSettings:
     def __init__(self, directory):
         self.path = Path(directory) / 'download-settings.json'
-        self.value = json.loads(self.path.read_text()) if self.path.exists() else {'max_gb': 2}
+        self.value = json.loads(self.path.read_text(encoding='utf-8')) if self.path.exists() else {'max_gb': 2}
 
     def public(self):
         return dict(self.value)

@@ -66,7 +66,7 @@ class YtDlpEngine:
                     progress_file = directory / 'progress.json'
                     if progress_file.is_file():
                         try:
-                            report(**json.loads(progress_file.read_text()))
+                            report(**json.loads(progress_file.read_text(encoding='utf-8')))
                         except (OSError, ValueError):
                             pass
                     await asyncio.wait({communication}, timeout=.3)
@@ -78,7 +78,7 @@ class YtDlpEngine:
             result_file = directory / 'result.json'
             if process.returncode or not result_file.is_file():
                 raise RuntimeError('下载进程异常退出，请检查运行环境')
-            result = json.loads(result_file.read_text())
+            result = json.loads(result_file.read_text(encoding='utf-8'))
             if result.get('error'):
                 raise RuntimeError(result['error'])
             return self.publish(platform, directory, result['items'])

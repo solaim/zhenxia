@@ -56,13 +56,13 @@ def main():
                     shutil.copy2(source, target)
     if sys.platform == 'darwin':
         launcher = destination / 'Start Zhenxia.command'
-        launcher.write_text('#!/bin/sh\ncd "$(dirname "$0")"\nexec ./Zhenxia\n')
+        launcher.write_text('#!/bin/sh\ncd "$(dirname "$0")"\nexec ./Zhenxia\n', encoding='utf-8')
         launcher.chmod(0o755)
     elif sys.platform == 'win32':
-        (destination / 'Start Zhenxia.bat').write_text('@echo off\r\ncd /d "%~dp0"\r\nZhenxia.exe\r\nif errorlevel 1 pause\r\n')
+        (destination / 'Start Zhenxia.bat').write_text('@echo off\r\ncd /d "%~dp0"\r\nZhenxia.exe\r\nif errorlevel 1 pause\r\n', encoding='utf-8')
     else:
         launcher = destination / 'start-zhenxia.sh'
-        launcher.write_text('#!/bin/sh\ncd "$(dirname "$0")"\nexec ./Zhenxia\n')
+        launcher.write_text('#!/bin/sh\ncd "$(dirname "$0")"\nexec ./Zhenxia\n', encoding='utf-8')
         launcher.chmod(0o755)
 
 
