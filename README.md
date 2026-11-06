@@ -8,7 +8,7 @@ Supports Douyin, YouTube, TikTok, X / Twitter, and Bilibili, with download progr
 
 ## Desktop packages (preview)
 
-Native packages are being developed on `feature/native-packages`. Open the [Native packages workflow](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml), select a successful run, and download the artifact for Windows x64, macOS Intel / Apple Silicon, or Linux x64 / ARM64. Sign in to GitHub to download artifacts.
+Published packages are available on [GitHub Releases](https://github.com/solaim/zhenxia/releases). For unreleased previews, open the [Native packages workflow](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml), select a successful run, and download the artifact for Windows x64, macOS Intel / Apple Silicon, or Linux x64 / ARM64. Sign in to GitHub to download artifacts.
 
 Extract the entire archive, then open `Start Zhenxia.bat` on Windows, `Start Zhenxia.command` on macOS, or `start-zhenxia.sh` on Linux. The app opens in your browser. Keep the terminal window open while using it; press Ctrl+C to stop. Python, Chromium, FFmpeg, and Node.js are included.
 
@@ -80,3 +80,14 @@ docker compose up -d --build
 The service listens on localhost by default and is intended for personal use. Do not expose it directly to the public internet.
 
 Built with [douyin-downloader](https://github.com/jiji262/douyin-downloader) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). Licensed under the [MIT License](LICENSE).
+
+## Publishing a release
+
+The native package workflow publishes a GitHub Release when a `v*` tag is pushed. First set the same version in `pyproject.toml` and `zhenxia/__init__.py`, commit it, then tag that commit:
+
+```bash
+git tag -a v0.1.0 -m "Zhenxia v0.1.0"
+git push origin v0.1.0
+```
+
+The tagged commit must contain the release workflow (currently on `feature/native-packages`). CI validates the version, builds and tests all five platforms, then uploads the archives and `SHA256SUMS.txt` to a release with generated notes. A failed platform blocks publication. Tags such as `v0.2.0-rc.1` publish a prerelease (use package version `0.2.0rc1`); branch pushes and manual builds only produce preview artifacts. Releases do not expire after 14 days and public release downloads do not require a GitHub login. No extra token is needed: publishing uses the workflow's `GITHUB_TOKEN`.
