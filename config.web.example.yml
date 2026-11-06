@@ -1,0 +1,23 @@
+# Docker Web defaults. Never put real cookies in this example file.
+link: []
+path: /app/Downloaded
+mode: [post]
+number:
+  post: 10
+thread: 2
+retry_times: 3
+video: true
+video_quality: highest
+music: false
+cover: false
+avatar: false
+json: false
+# Default: direct access. See README network configuration. Never commit proxy credentials.
+proxy: ""
+cookies: ""
+browser_fallback:
+  enabled: true
+  headless: true
+server:
+  max_jobs: 500
+  job_ttl_seconds: 86400

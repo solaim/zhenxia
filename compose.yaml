@@ -1,0 +1,27 @@
+name: zhenxia
+services:
+  web:
+    build: .
+    image: zhenxia:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+      - ./Downloaded:/app/Downloaded
+    environment:
+      - OPENAI_API_KEY
+      - ZHENXIA_PROXY
+      - ZHENXIA_PROXY_DOUYIN
+      - ZHENXIA_PROXY_YOUTUBE
+      - ZHENXIA_PROXY_TIKTOK
+      - ZHENXIA_PROXY_X
+      - ZHENXIA_PROXY_BILIBILI
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3

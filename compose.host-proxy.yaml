@@ -1,0 +1,6 @@
+# Linux Docker only: opt in when using a proxy running on the Docker host.
+# docker compose -f compose.yaml -f compose.host-proxy.yaml up -d
+services:
+  web:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
