@@ -15,3 +15,11 @@ Verified against official yt-dlp README and release 2026.10.26 on 2026-11-05. yt
 A curated platform router and disabled generic extractor bound the application scope. Existing Douyin behavior remains separate. Site extractors need frequent updates and successful downloads depend on permissions, connectivity and anti-bot restrictions. Telegram client sessions are a separate integration, not covered here. DRM decryption is not provided.
 
 Official references: [README / dependencies](https://github.com/yt-dlp/yt-dlp#dependencies), [supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), [release](https://github.com/yt-dlp/yt-dlp/releases/tag/2026.10.26).
+
+## Native preview packages
+
+Native archives also bundle the Python runtime and installed Python dependencies, Playwright with Chromium, Node.js, FFmpeg and ffprobe. Each component retains its own license. Python dependency license files and FFmpeg's build/license information are included under `runtime-notices/`; Chromium ships its own notices in the browser directory.
+
+FFmpeg is installed from Ubuntu packages, Homebrew, or Chocolatey during the native build and may be GPL licensed. Build configuration and version are recorded in each archive. Source and packaging recipes: [Ubuntu FFmpeg](https://packages.ubuntu.com/jammy/ffmpeg), [Homebrew FFmpeg](https://formulae.brew.sh/formula/ffmpeg), [Chocolatey FFmpeg](https://community.chocolatey.org/packages/ffmpeg), [FFmpeg source](https://ffmpeg.org/download.html). These components are separate executables invoked by Zhenxia.
+
+[Python license](https://docs.python.org/3/license.html) · [Playwright license](https://github.com/microsoft/playwright-python/blob/main/LICENSE) · [Chromium license](https://chromium.googlesource.com/chromium/src/+/main/LICENSE) · [Node.js license](https://github.com/nodejs/node/blob/main/LICENSE)
