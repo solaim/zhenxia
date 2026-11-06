@@ -1,7 +1,7 @@
 'use strict';
 const t = (key, values) => I18n.t(key, values);
 const $ = selector => document.querySelector(selector);
-const state = {kind: 'all', query: '', offset: 0, items: [], view: 'library', busy: false};
+const state = {kind: 'all', folder: '', tag: '', collections: {folders:[],tags:[]}, query: '', offset: 0, items: [], view: 'library', busy: false};
 let toastTimer;
 function toast(message) { $('#toast').textContent = message; $('#toast').classList.remove('hidden'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.add('hidden'), 5000); }
 async function api(path, options = {}) {
@@ -40,7 +40,16 @@ function card(item) {
   const info = element('div','card-info'); info.append(element('span','',date(item.modified)),element('span','',size(item.size)));
   const actions = element('div','card-actions'); const download = element('a','',t('file.save')); download.href = '/api/v1/resources/' + item.id + '/file?download=true'; download.download = item.name;
   const remove = element('button','',t('file.remove')); remove.addEventListener('click', async () => { if (!confirm(t('file.confirm', {name: item.name}))) return; remove.disabled = true; try { await api('resources/' + item.id, {method:'DELETE'}); await refresh(); toast(t('file.trashed')); } catch (error) { toast(error.message); } finally { remove.disabled = false; } });
-  actions.append(download,remove); body.append(title,info,actions); node.append(thumb,body); return node;
+  const organize = element('button','organize-resource',t('organize.resource'));
+  organize.addEventListener('click', () => openOrganization(item).catch(error => toast(error.message)));
+  const labels = element('div','resource-labels');
+  if (item.folder_name) labels.append(element('span','folder-chip','▱ ' + item.folder_name));
+  for (const tag of item.tags || []) {
+    const chip = element('button','tag-chip','#' + tag.name); chip.type = 'button';
+    chip.addEventListener('click', () => { state.tag = tag.id; renderCollectionFilters(); loadResources().catch(error => toast(error.message)); });
+    labels.append(chip);
+  }
+  actions.append(download,remove,organize); body.append(title,info,labels,actions); node.append(thumb,body); return node;
 }
 let resourceRequest = 0;
 function reconcileResources(items) {
@@ -65,12 +74,12 @@ async function loadResources(append = false, preserve = false) {
   const requestId = ++resourceRequest;
   const offset = append ? state.items.length : 0;
   const wanted = preserve ? Math.max(60,state.items.length) : 60;
-  const params = new URLSearchParams({q:state.query,kind:state.kind,offset,limit:Math.min(200,wanted)});
+  const params = new URLSearchParams({q:state.query,kind:state.kind,folder:state.folder,tag:state.tag,offset,limit:Math.min(200,wanted)});
   const data = await api('resources?' + params);
   if (preserve && wanted > 200 && data.total > 200) {
     const pages = [];
     for (let offset = 200; offset < Math.min(wanted,data.total); offset += 200) {
-      pages.push(api('resources?' + new URLSearchParams({q:state.query,kind:state.kind,offset,limit:Math.min(200,wanted-offset)})));
+      pages.push(api('resources?' + new URLSearchParams({q:state.query,kind:state.kind,folder:state.folder,tag:state.tag,offset,limit:Math.min(200,wanted-offset)})));
     }
     for (const page of await Promise.all(pages)) data.items.push(...page.items);
   }
@@ -79,6 +88,10 @@ async function loadResources(append = false, preserve = false) {
   state.items = append ? state.items.concat(data.items) : data.items;
   reconcileResources(state.items);
   $('#empty').classList.toggle('hidden',data.total > 0);
+  const filtered = Boolean(state.folder || state.tag || state.query || state.kind !== 'all');
+  for (const [selector,key] of [['h3', filtered ? 'organize.empty-title' : 'empty.title'],['p',filtered ? 'organize.empty-note' : 'empty.description']]) {
+    const node = $('#empty').querySelector(selector); node.dataset.i18n = key; node.textContent = t(key);
+  }
   $('#resource-summary').textContent = t(data.total === 1 ? 'resources.count.one' : 'resources.count', {count: new Intl.NumberFormat(I18n.language).format(data.total), size: size(data.bytes)});
   $('#load-more').classList.toggle('hidden',state.items.length >= data.total);
 }
@@ -133,7 +146,7 @@ function renderSettings(data) {
   $('#platform-cookie-status').textContent = t(selected?.cookie_configured ? 'cookie.configured' : 'cookie.empty');
 }
 async function loadSettings() { state.settings = await api('settings'); renderSettings(state.settings); }
-async function refresh() { await Promise.all([loadResources(),loadStats(),loadJobs(),loadSettings()]); }
+async function refresh() { await loadCollections(); await Promise.all([loadResources(),loadStats(),loadJobs(),loadSettings()]); }
 $('#download-form').addEventListener('submit',async event => { event.preventDefault(); $('#submit-download').disabled = true; try { await api('download',{method:'POST',body:JSON.stringify({url:$('#url').value})}); $('#url').value = ''; toast(t('jobs.queued')); view('jobs'); await loadJobs(); } catch (error) { toast(error.message); } finally { $('#submit-download').disabled = false; } });
 $('#cookie-form').addEventListener('submit',async event => { event.preventDefault(); if (!$('#cookie').value.trim() && !confirm(t('cookie.confirm'))) return; const button = event.target.querySelector('button'); button.disabled = true; try { await api('settings/cookie',{method:'PUT',body:JSON.stringify({cookie:$('#cookie').value})}); $('#cookie').value = ''; await loadSettings(); toast(t('cookie.saved')); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
 for (const button of document.querySelectorAll('.tab')) button.addEventListener('click',async () => { state.kind = button.dataset.kind; for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active',tab === button); try { await loadResources(); } catch (error) { toast(error.message); } });
@@ -149,6 +162,9 @@ window.addEventListener('languagechange', () => {
   renderStats(state.stats);
   renderJobs(state.jobs);
   renderSettings(state.settings);
+  renderCollectionFilters();
+  if (collectionKind) renderCollectionManager();
+  if ($('#organization-dialog').open) fillSelect($('#resource-folder'),state.collections.folders,t('organize.unfiled'),$('#resource-folder').value);
   const summary = state.resourceSummary;
   if (summary) $('#resource-summary').textContent = t(summary.total === 1 ? 'resources.count.one' : 'resources.count', {count: new Intl.NumberFormat(I18n.language).format(summary.total), size: size(summary.bytes)});
   // Translate existing cards in place: keep media elements, pagination and scroll position.
@@ -161,6 +177,7 @@ window.addEventListener('languagechange', () => {
     node.querySelector('.card-info span').textContent = date(item.modified);
     node.querySelector('.card-actions a').textContent = t('file.save');
     node.querySelector('.card-actions button').textContent = t('file.remove');
+    node.querySelector('.organize-resource').textContent = t('organize.resource');
   }
 });
 let wasActive = false;
@@ -295,4 +312,95 @@ $('#limits-form').addEventListener('submit', async event => {
   const button = event.target.querySelector('button'); button.disabled = true;
   try { await api('settings/download-limits', {method:'PUT', body:JSON.stringify({max_gb:Number($('#limits-gb').value)})}); await loadSettings(); toast(t('limits.save')); }
   catch(error) { toast(error.message); } finally { button.disabled = false; }
+});
+
+
+function fillSelect(select, entries, first, value) {
+  select.replaceChildren(new Option(first, ''), ...entries.map(item => new Option(item.name, item.id)));
+  select.value = value || '';
+}
+function renderCollectionFilters() {
+  fillSelect($('#folder-filter'), [{id:'__unfiled__',name:t('organize.unfiled')},...state.collections.folders], t('organize.all-folders'), state.folder);
+  fillSelect($('#tag-filter'), state.collections.tags, t('organize.all-tags'), state.tag);
+}
+async function loadCollections() {
+  state.collections = await api('collections');
+  if (state.folder && state.folder !== '__unfiled__' && !state.collections.folders.some(item => item.id === state.folder)) state.folder = '';
+  if (state.tag && !state.collections.tags.some(item => item.id === state.tag)) state.tag = '';
+  renderCollectionFilters();
+}
+for (const [id,key] of [['folder-filter','folder'],['tag-filter','tag']]) {
+  $('#' + id).addEventListener('change', async event => {
+    state[key] = event.target.value;
+    try { await loadResources(); } catch(error) { toast(error.message); }
+  });
+}
+let collectionKind = null;
+async function openCollections(kind) {
+  await loadCollections(); collectionKind = kind;
+  $('#collection-name').value = ''; $('#collection-error').textContent = '';
+  renderCollectionManager(); $('#collection-dialog').showModal(); $('#collection-name').focus();
+}
+function renderCollectionManager() {
+  if (!collectionKind) return;
+  $('#collection-title').textContent = t(collectionKind === 'folders' ? 'organize.manage-folders' : 'organize.manage-tags');
+  const rows = state.collections[collectionKind].map(item => {
+    const row = element('form','collection-row');
+    const input = element('input',''); input.value = item.name; input.required = true; input.maxLength = 80; input.setAttribute('aria-label',t('organize.name'));
+    const count = element('span','collection-count',String(item.count));
+    const rename = element('button','subtle',t('organize.rename')); rename.type = 'submit';
+    const remove = element('button','subtle',t('organize.delete')); remove.type = 'button';
+    row.addEventListener('submit', async event => {
+      event.preventDefault(); rename.disabled = true;
+      try { await api('collections/' + collectionKind + '/' + item.id,{method:'PUT',body:JSON.stringify({name:input.value})}); await refresh(); renderCollectionManager(); }
+      catch(error) { $('#collection-error').textContent = error.message; } finally { rename.disabled = false; }
+    });
+    remove.addEventListener('click', async () => {
+      if (!confirm(t(collectionKind === 'folders' ? 'organize.delete-folder-confirm' : 'organize.delete-tag-confirm',{name:item.name}))) return;
+      remove.disabled = true;
+      try { await api('collections/' + collectionKind + '/' + item.id,{method:'DELETE'}); await refresh(); renderCollectionManager(); }
+      catch(error) { $('#collection-error').textContent = error.message; } finally { remove.disabled = false; }
+    });
+    row.append(input,count,rename,remove); return row;
+  });
+  $('#collection-list').replaceChildren(...(rows.length ? rows : [element('p','',t('organize.none'))]));
+}
+$('#manage-folders').addEventListener('click', () => openCollections('folders').catch(error => toast(error.message)));
+$('#manage-tags').addEventListener('click', () => openCollections('tags').catch(error => toast(error.message)));
+$('#close-collections').addEventListener('click', () => $('#collection-dialog').close());
+$('#collection-dialog').addEventListener('close', () => { collectionKind = null; });
+$('#collection-create').addEventListener('submit', async event => {
+  event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true;
+  try { await api('collections/' + collectionKind,{method:'POST',body:JSON.stringify({name:$('#collection-name').value})}); $('#collection-name').value = ''; $('#collection-error').textContent = ''; await loadCollections(); renderCollectionManager(); }
+  catch(error) { $('#collection-error').textContent = error.message; } finally { button.disabled = false; }
+});
+let organizingResource = null;
+function renderResourceTags(selected) {
+  $('#resource-tags').replaceChildren(...state.collections.tags.map(tag => {
+    const label = element('label','tag-choice'); const checkbox = element('input','');
+    checkbox.type = 'checkbox'; checkbox.value = tag.id; checkbox.checked = selected.has(tag.id);
+    label.append(checkbox,document.createTextNode(tag.name)); return label;
+  }));
+  if (!state.collections.tags.length) $('#resource-tags').append(element('p','',t('organize.none')));
+}
+async function openOrganization(item) {
+  await loadCollections(); organizingResource = item.id;
+  $('#organization-resource-name').textContent = item.title || item.name;
+  $('#organization-error').textContent = ''; $('#new-resource-tag').value = '';
+  fillSelect($('#resource-folder'),state.collections.folders,t('organize.unfiled'),item.folder_id);
+  renderResourceTags(new Set((item.tags || []).map(tag => tag.id)));
+  $('#organization-dialog').showModal();
+}
+$('#close-organization').addEventListener('click', () => $('#organization-dialog').close());
+$('#add-resource-tag').addEventListener('click', async event => {
+  event.target.disabled = true;
+  const selected = new Set([...$('#resource-tags').querySelectorAll('input:checked')].map(node => node.value));
+  try { const tag = await api('collections/tags',{method:'POST',body:JSON.stringify({name:$('#new-resource-tag').value})}); selected.add(tag.id); await loadCollections(); renderResourceTags(selected); $('#new-resource-tag').value = ''; $('#organization-error').textContent = ''; }
+  catch(error) { $('#organization-error').textContent = error.message; } finally { event.target.disabled = false; }
+});
+$('#organization-form').addEventListener('submit', async event => {
+  event.preventDefault(); const button = event.target.querySelector('button.primary'); button.disabled = true;
+  const tags = [...$('#resource-tags').querySelectorAll('input:checked')].map(node => node.value);
+  try { await api('resources/' + organizingResource + '/organization',{method:'PUT',body:JSON.stringify({folder_id:$('#resource-folder').value || null,tag_ids:tags})}); $('#organization-dialog').close(); await refresh(); toast(t('organize.saved')); }
+  catch(error) { $('#organization-error').textContent = error.message; } finally { button.disabled = false; }
 });

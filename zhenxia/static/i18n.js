@@ -20,7 +20,7 @@ window.I18n = (() => {
   }
   function error(message) {
     const text = String(message);
-    const key = Object.keys(dictionaries['zh-CN'] || {}).find(key => key.startsWith('error.server.') && dictionaries['zh-CN'][key] === text);
+    const key = Object.keys(dictionaries['zh-CN'] || {}).find(key => key.startsWith('error.server.') && (dictionaries['zh-CN'][key] === text || dictionaries.en?.[key] === text));
     if (key) return t(key);
     // Third-party diagnostic text has no stable error code. Preserve it verbatim.
     return language === 'en' && /\p{Script=Han}/u.test(text) ? t('error.source', {message: text}) : text;

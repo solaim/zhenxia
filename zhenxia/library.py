@@ -67,8 +67,8 @@ class Library:
             self.store.sync_resources(items)
             return {'indexed': len(items)}
 
-    def list(self, query='', kind='all', offset=0, limit=60):
-        return self.store.resources(query, kind, offset, limit)
+    def list(self, query='', kind='all', offset=0, limit=60, folder=None, tag=None):
+        return self.store.resources(query, kind, offset, limit, folder, tag)
 
     def find(self, resource_id):
         item = self.store.resource(resource_id)
