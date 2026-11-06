@@ -8,11 +8,11 @@
 
 ## 桌面包（预览）
 
-独立包正在 `feature/native-packages` 分支开发。打开 [Native packages 构建页面](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml)，选择成功的构建，下载 Windows x64、macOS Intel / Apple Silicon 或 Linux x64 对应的产物。下载构建产物需登录 GitHub。
+独立包正在 `feature/native-packages` 分支开发。打开 [Native packages 构建页面](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml)，选择成功的构建，下载 Windows x64、macOS Intel / Apple Silicon 或 Linux x64 / ARM64 对应的产物。下载构建产物需登录 GitHub。
 
 完整解压后，Windows 双击 `Start Zhenxia.bat`，macOS 双击 `Start Zhenxia.command`，Linux 运行 `start-zhenxia.sh`，浏览器会自动打开。使用期间保留终端窗口，按 Ctrl+C 停止服务。包内包含 Python、Chromium、FFmpeg 和 Node.js。
 
-预览包尚未签名，Windows 或 macOS 可能要求确认打开。Linux 面向 Ubuntu 22.04+ 及兼容桌面发行版，仍需系统提供 Chromium 所需的基础库。目前提供免安装压缩包，并非签名安装程序。
+预览包尚未签名，Windows 或 macOS 可能要求确认打开。Linux x64 面向 Ubuntu 22.04+，ARM64 面向 Ubuntu 24.04+ 及兼容桌面发行版，仍需系统提供 Chromium 所需的基础库。目前提供免安装压缩包，并非签名安装程序。
 
 配置与下载保存在 Windows 的 `%LOCALAPPDATA%\Zhenxia`、macOS 的 `~/Library/Application Support/Zhenxia`、Linux 的 `${XDG_DATA_HOME:-~/.local/share}/Zhenxia`。升级时保留该目录即可；暂不自动迁移 Docker 数据。
 

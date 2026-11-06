@@ -8,11 +8,11 @@ Supports Douyin, YouTube, TikTok, X / Twitter, and Bilibili, with download progr
 
 ## Desktop packages (preview)
 
-Native packages are being developed on `feature/native-packages`. Open the [Native packages workflow](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml), select a successful run, and download the artifact for Windows x64, macOS Intel / Apple Silicon, or Linux x64. Sign in to GitHub to download artifacts.
+Native packages are being developed on `feature/native-packages`. Open the [Native packages workflow](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml), select a successful run, and download the artifact for Windows x64, macOS Intel / Apple Silicon, or Linux x64 / ARM64. Sign in to GitHub to download artifacts.
 
 Extract the entire archive, then open `Start Zhenxia.bat` on Windows, `Start Zhenxia.command` on macOS, or `start-zhenxia.sh` on Linux. The app opens in your browser. Keep the terminal window open while using it; press Ctrl+C to stop. Python, Chromium, FFmpeg, and Node.js are included.
 
-Preview packages are unsigned; Windows or macOS may ask you to approve opening them. Linux packages target Ubuntu 22.04+ and compatible desktop distributions, and require system libraries used by Chromium. These are portable archives, not signed installers.
+Preview packages are unsigned; Windows or macOS may ask you to approve opening them. Linux x64 packages target Ubuntu 22.04+; Linux ARM64 packages target Ubuntu 24.04+ and compatible desktop distributions. Both require system libraries used by Chromium. These are portable archives, not signed installers.
 
 Settings and downloads are stored in `%LOCALAPPDATA%\Zhenxia` (Windows), `~/Library/Application Support/Zhenxia` (macOS), or `${XDG_DATA_HOME:-~/.local/share}/Zhenxia` (Linux). Keep this folder when upgrading. Docker data is not migrated automatically.
 

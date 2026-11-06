@@ -1,6 +1,7 @@
 """Paths and worker dispatch for source and standalone distributions."""
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,8 +37,13 @@ def check_runtime():
     from playwright.sync_api import sync_playwright
 
     for tool in ('ffmpeg', 'ffprobe', 'node'):
-        if not shutil.which(tool):
+        executable = shutil.which(tool)
+        if not executable:
             raise RuntimeError('Missing bundled runtime: ' + tool)
+        if frozen() and Path(executable).parent != Path(sys._MEIPASS) / 'bin':
+            raise RuntimeError('Runtime is not bundled: ' + tool)
+        subprocess.run([executable, '--version' if tool == 'node' else '-version'],
+                       check=True, timeout=30, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with sync_playwright() as playwright:
         if not Path(playwright.chromium.executable_path).is_file():
             raise RuntimeError('Missing bundled Chromium')
