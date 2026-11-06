@@ -12,7 +12,7 @@ COOKIE_DOMAINS = {
 }
 EXTRACTORS = {
     'youtube': ['Youtube'], 'tiktok': ['TikTok', 'vm.tiktok'],
-    'x': ['twitter', 'twitter:amplify', 'twitter:card'], 'bilibili': ['BiliBili'],
+    'x': ['twitter', 'twitter:amplify', 'twitter:card'], 'bilibili': ['BiliBili', 'BiliBiliBangumi'],
 }
 
 
@@ -50,7 +50,7 @@ def normalize_link(text):
         ('tiktok', {'www.tiktok.com', 'tiktok.com'}, r'/@[A-Za-z0-9_.-]+/video/\d+'),
         ('tiktok', {'vm.tiktok.com', 'vt.tiktok.com'}, r'/[A-Za-z0-9]+'),
         ('x', {'x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com'}, r'/(?:[A-Za-z0-9_]+/status|i/status)/\d+'),
-        ('bilibili', {'bilibili.com', 'www.bilibili.com', 'm.bilibili.com'}, r'/video/(?:BV[A-Za-z0-9]+|av\d+)'),
+        ('bilibili', {'bilibili.com', 'www.bilibili.com', 'm.bilibili.com'}, r'/(?:video/(?:BV[A-Za-z0-9]+|av\d+)|bangumi/play/ep[0-9]+)'),
     ]
     for platform, hosts, pattern in routes:
         if host in hosts:

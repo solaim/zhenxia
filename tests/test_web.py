@@ -363,6 +363,7 @@ async def test_adapter_profile_download_uses_installed_factory(tmp_path, monkeyp
     'https://www.tiktok.com/@author/video/12345',
     'https://x.com/author/status/12345',
     'https://www.bilibili.com/video/BV1xx411c7mD',
+    'https://www.bilibili.com/bangumi/play/ep409983?from_spmid=666.25.episode.0',
 ])
 def test_multiplatform_dispatch_and_resource_relation(client, tmp_path, monkeypatch, url):
     from zhenxia.platforms import normalize_link
