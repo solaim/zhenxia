@@ -188,7 +188,7 @@ def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monke
         thread.join()
 
 
-@pytest.mark.skipif(os.name != 'posix', reason='Process group verification uses POSIX signals')
+@pytest.mark.skipif(sys.platform != 'linux', reason='Descendant state verification uses Linux /proc')
 async def test_stopping_worker_kills_descendants(tmp_path):
     from zhenxia.ytdlp import stop_process
     process = await asyncio.create_subprocess_exec(sys.executable, '-c',
@@ -202,7 +202,7 @@ async def test_stopping_worker_kills_descendants(tmp_path):
     for _ in range(50):
         try:
             state = Path(f'/proc/{child_pid}/stat').read_text(encoding='utf-8').split()[2]
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             break
         if state == 'Z':
             break
