@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 
 
 def now():
@@ -46,6 +47,21 @@ class Store:
                     resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
                     PRIMARY KEY(job_id, resource_id));
             ''')
+            db.executescript('''
+                CREATE TABLE IF NOT EXISTS folders (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE);
+                CREATE TABLE IF NOT EXISTS tags (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE);
+                CREATE TABLE IF NOT EXISTS resource_tags (
+                    resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+                    tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                    PRIMARY KEY(resource_id, tag_id));
+                CREATE INDEX IF NOT EXISTS resource_tags_tag ON resource_tags(tag_id);
+            ''')
+            if 'folder_id' not in {row[1] for row in db.execute('PRAGMA table_info(resources)')}:
+                db.execute('ALTER TABLE resources ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL')
+            db.execute('CREATE INDEX IF NOT EXISTS resources_folder ON resources(folder_id)')
+            db.execute('INSERT OR IGNORE INTO schema_migrations VALUES (5, ?)', (now(),))
             if 'progress' not in {row[1] for row in db.execute('PRAGMA table_info(download_tasks)')}:
                 db.execute("ALTER TABLE download_tasks ADD COLUMN progress TEXT NOT NULL DEFAULT '{}'")
             db.execute('INSERT OR IGNORE INTO schema_migrations VALUES (4, ?)', (now(),))
@@ -136,7 +152,7 @@ class Store:
                     source_url=COALESCE(excluded.source_url,resources.source_url),
                     trash_path=NULL,deleted_at=NULL''', item)
 
-    def resources(self, query='', kind='all', offset=0, limit=60):
+    def resources(self, query='', kind='all', offset=0, limit=60, folder=None, tag=None):
         conditions = ["state='ready'"]
         params = []
         if query:
@@ -145,11 +161,20 @@ class Store:
         if kind != 'all':
             conditions.append('type LIKE ?')
             params.append(kind + '/%')
+        if folder == '__unfiled__':
+            conditions.append('folder_id IS NULL')
+        elif folder:
+            conditions.append('folder_id=?')
+            params.append(folder)
+        if tag:
+            conditions.append('EXISTS (SELECT 1 FROM resource_tags WHERE resource_id=resources.id AND tag_id=?)')
+            params.append(tag)
         where = ' AND '.join(conditions)
         with self.connect() as db:
             totals = db.execute('SELECT COUNT(*), COALESCE(SUM(size),0) FROM resources WHERE ' + where, params).fetchone()
             items = [dict(row) for row in db.execute('SELECT * FROM resources WHERE ' + where +
                      ' ORDER BY modified DESC,id LIMIT ? OFFSET ?', params + [limit, offset])]
+            self._decorate_resources(db, items)
         return {'items': items, 'total': totals[0], 'bytes': totals[1]}
 
     def resource(self, resource_id):
@@ -180,3 +205,86 @@ class Store:
                         SELECT ?,id FROM resources WHERE video_id=? AND state='ready' """,
                                (task['job_id'], match.group(1)))
             db.execute('INSERT INTO schema_migrations VALUES (3, ?)', (now(),))
+
+
+    @staticmethod
+    def _decorate_resources(db, items):
+        folders = {row['id']: row['name'] for row in db.execute('SELECT id,name FROM folders')}
+        by_id = {item['id']: item for item in items}
+        for item in items:
+            item['folder_name'] = folders.get(item['folder_id'])
+            item['tags'] = []
+        if not items:
+            return
+        placeholders = ','.join('?' for _ in items)
+        for row in db.execute(
+                'SELECT resource_id,tags.id,tags.name FROM resource_tags JOIN tags ON tags.id=tag_id '
+                'WHERE resource_id IN (' + placeholders + ') ORDER BY tags.name_key,tags.id', list(by_id)):
+            by_id[row['resource_id']]['tags'].append({'id': row['id'], 'name': row['name']})
+
+    @staticmethod
+    def _collection_table(kind):
+        if kind not in ('folders', 'tags'):
+            raise ValueError('Invalid collection type')
+        return kind
+
+    def collections(self):
+        with self.connect() as db:
+            folders = [dict(row) for row in db.execute(
+                "SELECT folders.id,folders.name,COUNT(resources.id) AS count FROM folders "
+                "LEFT JOIN resources ON resources.folder_id=folders.id AND resources.state='ready' "
+                'GROUP BY folders.id ORDER BY folders.name_key,folders.id')]
+            tags = [dict(row) for row in db.execute(
+                "SELECT tags.id,tags.name,COUNT(resources.id) AS count FROM tags "
+                "LEFT JOIN resource_tags ON tag_id=tags.id LEFT JOIN resources "
+                "ON resources.id=resource_id AND resources.state='ready' "
+                'GROUP BY tags.id ORDER BY tags.name_key,tags.id')]
+            return {'folders': folders, 'tags': tags}
+
+    def save_collection(self, kind, name, collection_id=None):
+        table = self._collection_table(kind)
+        name = name.strip()
+        if not name or len(name) > 80:
+            raise ValueError('Name must contain 1–80 characters')
+        with self.connect() as db:
+            if collection_id is not None and not db.execute(
+                    'SELECT 1 FROM ' + table + ' WHERE id=?', (collection_id,)).fetchone():
+                raise FileNotFoundError('Collection not found')
+            identifier = collection_id or uuid4().hex
+            try:
+                if collection_id is None:
+                    db.execute('INSERT INTO ' + table + ' (id,name,name_key) VALUES (?,?,?)',
+                               (identifier, name, name.casefold()))
+                else:
+                    db.execute('UPDATE ' + table + ' SET name=?,name_key=? WHERE id=?',
+                               (name, name.casefold(), identifier))
+            except sqlite3.IntegrityError:
+                raise ValueError('Name already exists') from None
+            return {'id': identifier, 'name': name}
+
+    def delete_collection(self, kind, collection_id):
+        table = self._collection_table(kind)
+        with self.connect() as db:
+            cursor = db.execute('DELETE FROM ' + table + ' WHERE id=?', (collection_id,))
+            if not cursor.rowcount:
+                raise FileNotFoundError('Collection not found')
+
+    def organize_resource(self, resource_id, folder_id, tag_ids):
+        tag_ids = list(dict.fromkeys(tag_ids))
+        with self.connect() as db:
+            if not db.execute("SELECT 1 FROM resources WHERE id=? AND state='ready'", (resource_id,)).fetchone():
+                raise FileNotFoundError('Resource not found')
+            if folder_id is not None and not db.execute('SELECT 1 FROM folders WHERE id=?', (folder_id,)).fetchone():
+                raise ValueError('Folder not found')
+            if len(tag_ids) > 30:
+                raise ValueError('Select at most 30 tags')
+            for tag_id in tag_ids:
+                if not db.execute('SELECT 1 FROM tags WHERE id=?', (tag_id,)).fetchone():
+                    raise ValueError('Tag not found')
+            db.execute('UPDATE resources SET folder_id=? WHERE id=?', (folder_id, resource_id))
+            db.execute('DELETE FROM resource_tags WHERE resource_id=?', (resource_id,))
+            db.executemany('INSERT INTO resource_tags (resource_id,tag_id) VALUES (?,?)',
+                           [(resource_id, tag_id) for tag_id in tag_ids])
+            items = [dict(db.execute('SELECT * FROM resources WHERE id=?', (resource_id,)).fetchone())]
+            self._decorate_resources(db, items)
+            return items[0]

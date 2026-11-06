@@ -58,6 +58,15 @@ class DownloadLimitsRequest(BaseModel):
     max_gb: float = Field(ge=0, le=1024, allow_inf_nan=False)
 
 
+class CollectionRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class OrganizeRequest(BaseModel):
+    folder_id: str | None = None
+    tag_ids: List[str] = Field(default_factory=list, max_length=30)
+
+
 class JobResponse(BaseModel):
     job_id: str
     status: str
@@ -179,8 +188,38 @@ def build_app(config) -> FastAPI:
 
     @app.get("/api/v1/resources")
     async def resources(q: str = "", kind: str = "all", offset: int = Query(0, ge=0),
-                        limit: int = Query(60, ge=1, le=200)):
-        return await asyncio.to_thread(library.list, q, kind, offset, limit)
+                        limit: int = Query(60, ge=1, le=200), folder: str | None = None,
+                        tag: str | None = None):
+        return await asyncio.to_thread(library.list, q, kind, offset, limit, folder, tag)
+
+    async def collection_action(action, *args):
+        try:
+            return await asyncio.to_thread(action, *args)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=409 if str(exc) == 'Name already exists' else 400, detail=str(exc))
+
+    @app.get('/api/v1/collections')
+    async def collections():
+        return await asyncio.to_thread(store.collections)
+
+    @app.post('/api/v1/collections/{kind}', status_code=201)
+    async def create_collection(kind: str, req: CollectionRequest):
+        return await collection_action(store.save_collection, kind, req.name)
+
+    @app.put('/api/v1/collections/{kind}/{collection_id}')
+    async def rename_collection(kind: str, collection_id: str, req: CollectionRequest):
+        return await collection_action(store.save_collection, kind, req.name, collection_id)
+
+    @app.delete('/api/v1/collections/{kind}/{collection_id}')
+    async def delete_collection(kind: str, collection_id: str):
+        await collection_action(store.delete_collection, kind, collection_id)
+        return {'ok': True}
+
+    @app.put('/api/v1/resources/{resource_id}/organization')
+    async def organize_resource(resource_id: str, req: OrganizeRequest):
+        return await collection_action(store.organize_resource, resource_id, req.folder_id, req.tag_ids)
 
     @app.post("/api/v1/resources/scan")
     async def scan_resources():

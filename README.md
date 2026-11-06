@@ -47,6 +47,12 @@ When login is required, import cookies for that platform in Settings. Douyin acc
 
 Some videos may be unavailable due to platform verification, region, account permissions, or network restrictions. Live streams are not supported. Only download content you have permission to save.
 
+## Organize your library
+
+Create folders manually with **Manage folders**, then choose **Organize** on a resource to assign its folder and tags. New downloads stay **Unfiled** until you move them. Each resource can belong to one folder and have multiple tags. Folder, tag, search, and media-type filters can be combined.
+
+Rename or delete folders and tags from their management dialogs. Deleting a folder makes its resources unfiled; deleting a tag removes that label. Neither action deletes or moves media files. Organization is saved in `data/zhenxia.db` and survives rescans and restarts.
+
 ## Network settings
 
 Connections are direct by default. To use a proxy, edit `proxy` in `data/config.yml`, then restart:
