@@ -23,9 +23,14 @@ from zhenxia.ytdlp import YtDlpEngine
     ('https://vm.tiktok.com/Abc123/', 'tiktok', 'https://vm.tiktok.com/Abc123'),
     ('https://twitter.com/author/status/12345?s=20', 'x', 'https://x.com/author/status/12345'),
     ('https://www.bilibili.com/video/BV1xx411c7mD/?spm_id=1', 'bilibili', 'https://www.bilibili.com/video/BV1xx411c7mD'),
+    ('https://www.bilibili.com/bangumi/play/ep409983?from_spmid=666.25.episode.0', 'bilibili', 'https://www.bilibili.com/bangumi/play/ep409983'),
+    ('https://m.bilibili.com/bangumi/play/ep409983/', 'bilibili', 'https://www.bilibili.com/bangumi/play/ep409983'),
     ('复制打开抖音 https://www.douyin.com/video/123?x=y 看视频', 'douyin', 'https://www.douyin.com/video/123'),
 ])
-def test_normalize(url, platform, expected):
+def test_normalize(url, platform, expected, monkeypatch):
+    if '/bangumi/' in url:
+        from zhenxia import features
+        monkeypatch.setattr(features, 'BANGUMI_ENABLED', True)
     assert normalize_link(url) == (platform, expected)
 
 
@@ -39,6 +44,12 @@ def test_normalize(url, platform, expected):
     'https://youtube.com/watch?v=wrong', 'https://x.com/author',
     'https://vimeo.com/123456', 'https://www.tiktok.com/@author', 'https://vimeo.com/channels/123',
     'https://www.bilibili.com/video/../../secret',
+    'https://www.bilibili.com/bangumi/play/ss409983',
+    'https://www.bilibili.com/bangumi/play/ep',
+    'https://www.bilibili.com/bangumi/play/ep409983/extra',
+    'https://www.bilibili.com.evil.test/bangumi/play/ep409983',
+    'https://user:secret@www.bilibili.com/bangumi/play/ep409983',
+    'https://www.bilibili.com:443/bangumi/play/ep409983',
 ])
 def test_reject_unsupported_and_ambiguous_links(url):
     with pytest.raises(ValueError):
@@ -134,7 +145,16 @@ async def test_cancel_kills_worker_and_cleans_staging(tmp_path, monkeypatch):
     assert not list((root / '.staging').iterdir())
 
 
-def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monkeypatch):
+@pytest.mark.parametrize(('platform', 'url', 'extractor_key', 'pattern'), [
+    ('youtube', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 'Youtube',
+     r'https://www\.youtube\.com/watch\?v=(?P<id>[A-Za-z0-9_-]+)'),
+    ('bilibili', 'https://www.bilibili.com/bangumi/play/ep409983', 'BiliBiliBangumi',
+     r'https://www\.bilibili\.com/bangumi/play/ep(?P<id>[0-9]+)'),
+])
+def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monkeypatch, platform, url, extractor_key, pattern):
+    if '/bangumi/' in url:
+        from zhenxia import features
+        monkeypatch.setattr(features, 'BANGUMI_ENABLED', True)
     from yt_dlp import YoutubeDL
     from yt_dlp.extractor.common import InfoExtractor
 
@@ -157,13 +177,13 @@ def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monke
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    class TestYoutubeIE(InfoExtractor):
-        IE_NAME = 'youtube'
-        _VALID_URL = r'https://www\.youtube\.com/watch\?v=(?P<id>[A-Za-z0-9_-]+)'
+    class TestVideoIE(InfoExtractor):
+        IE_NAME = extractor_key
+        _VALID_URL = pattern
 
         @classmethod
         def ie_key(cls):
-            return 'Youtube'
+            return extractor_key
 
         def _real_extract(self, url):
             return {'id': self._match_id(url), 'title': '公开测试视频', 'uploader': 'Author',
@@ -172,12 +192,12 @@ def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monke
     class Downloader(YoutubeDL):
         def __init__(self, options):
             super().__init__(options)
-            self.add_info_extractor(TestYoutubeIE())
+            self.add_info_extractor(TestVideoIE())
 
     monkeypatch.setattr(ytdlp_worker, 'YoutubeDL', Downloader)
     try:
-        result = ytdlp_worker.download({'platform':'youtube', 'directory':str(tmp_path),
-                                      'url':'https://www.youtube.com/watch?v=aqz-KE-bpKQ'})
+        result = ytdlp_worker.download({'platform':platform, 'directory':str(tmp_path),
+                                      'url':url})
         assert len(result) == 1
         assert result[0]['title'] == '公开测试视频'
         assert result[0]['author'] == 'Author'
@@ -267,4 +287,22 @@ def test_x_embedded_video_extractors_enabled_without_generic():
     with YoutubeDL({'quiet': True, 'allowed_extractors':EXTRACTORS['x']}) as ydl:
         assert 'TwitterAmplify' in ydl._ies
         assert 'TwitterCard' in ydl._ies
+        assert 'Generic' not in ydl._ies
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_bilibili_bangumi_extractor_enabled_without_season_or_generic(monkeypatch, enabled):
+    from zhenxia import features
+    monkeypatch.setattr(features, 'BANGUMI_ENABLED', enabled)
+    from yt_dlp import YoutubeDL
+    from yt_dlp.extractor.bilibili import BiliBiliBangumiIE
+
+    from zhenxia.platforms import allowed_extractors
+
+    url = 'https://www.bilibili.com/bangumi/play/ep409983'
+    assert BiliBiliBangumiIE.suitable(url)
+    with YoutubeDL({'quiet': True, 'allowed_extractors': allowed_extractors('bilibili')}) as ydl:
+        assert 'BiliBili' in ydl._ies
+        assert ('BiliBiliBangumi' in ydl._ies) == enabled
+        assert 'BiliBiliBangumiSeason' not in ydl._ies
         assert 'Generic' not in ydl._ies

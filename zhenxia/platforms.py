@@ -2,6 +2,8 @@
 import re
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+from . import features
+
 PLATFORMS = {
     'douyin': '抖音 / Douyin', 'youtube': 'YouTube', 'tiktok': 'TikTok',
     'x': 'X / Twitter', 'bilibili': '哔哩哔哩 / Bilibili',
@@ -14,6 +16,13 @@ EXTRACTORS = {
     'youtube': ['Youtube'], 'tiktok': ['TikTok', 'vm.tiktok'],
     'x': ['twitter', 'twitter:amplify', 'twitter:card'], 'bilibili': ['BiliBili'],
 }
+
+
+def allowed_extractors(platform):
+    extractors = list(EXTRACTORS[platform])
+    if platform == 'bilibili' and features.BANGUMI_ENABLED:
+        extractors.append('BiliBiliBangumi')
+    return extractors
 
 
 def normalize_link(text):
@@ -50,11 +59,13 @@ def normalize_link(text):
         ('tiktok', {'www.tiktok.com', 'tiktok.com'}, r'/@[A-Za-z0-9_.-]+/video/\d+'),
         ('tiktok', {'vm.tiktok.com', 'vt.tiktok.com'}, r'/[A-Za-z0-9]+'),
         ('x', {'x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com'}, r'/(?:[A-Za-z0-9_]+/status|i/status)/\d+'),
-        ('bilibili', {'bilibili.com', 'www.bilibili.com', 'm.bilibili.com'}, r'/video/(?:BV[A-Za-z0-9]+|av\d+)'),
+        ('bilibili', {'bilibili.com', 'www.bilibili.com', 'm.bilibili.com'}, r'/(?:video/(?:BV[A-Za-z0-9]+|av\d+)|bangumi/play/ep[0-9]+)'),
     ]
     for platform, hosts, pattern in routes:
         if host in hosts:
             if re.fullmatch(pattern, path):
+                if platform == 'bilibili' and path.startswith('/bangumi/') and not features.BANGUMI_ENABLED:
+                    raise ValueError('请使用单个视频链接，暂不支持频道、播放列表或直播')
                 canonical = {'x': 'x.com', 'bilibili': 'www.bilibili.com'}.get(platform, host)
                 return platform, 'https://' + canonical + path
             raise ValueError('请使用单个视频链接，暂不支持频道、播放列表或直播')

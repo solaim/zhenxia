@@ -17,6 +17,7 @@ services:
       - ZHENXIA_PROXY_YOUTUBE
       - ZHENXIA_PROXY_TIKTOK
       - ZHENXIA_PROXY_X
+      - ZHENXIA_ENABLE_BANGUMI
       - ZHENXIA_PROXY_BILIBILI
     shm_size: 1gb
     healthcheck:
