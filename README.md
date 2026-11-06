@@ -32,7 +32,7 @@ Open [http://localhost:8000](http://localhost:8000). Configuration is created au
 
 1. Paste a video link or share text on the home page and click Download.
 2. Track progress in Download Tasks and retry failed downloads.
-3. Search, preview, or save videos from the Library. Removed files are moved to `Downloaded/.trash/`.
+3. Search, preview, or save videos from the Library. Reopening a video or audio file with saved progress lets you start over or resume. Progress stays in the current browser and is cleared when playback finishes. Removed files are moved to `Downloaded/.trash/`.
 4. Manage platform cookies and the download size limit in Settings. Multi-platform tasks default to 2 GB; set the limit to `0` for unlimited downloads. The separate Douyin engine retains a 2 GB limit per file.
 
 | Platform | Supported links |

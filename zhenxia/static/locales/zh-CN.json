@@ -202,5 +202,9 @@
   "error.server.205": "资源不存在",
   "error.server.206": "最多选择 30 个标签",
   "organize.empty-title": "没有符合条件的资源",
-  "organize.empty-note": "试试其他文件夹、标签或搜索条件。"
+  "organize.empty-note": "试试其他文件夹、标签或搜索条件。",
+  "playback.restart": "重新开始",
+  "playback.continue": "从上次位置继续",
+  "playback.prompt": "上次播放到 {time}，要从这里继续吗？",
+  "playback.local-note": "播放进度保存在当前浏览器。"
 }

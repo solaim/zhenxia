@@ -14,18 +14,75 @@ function size(bytes) { if (!bytes) return '0 B'; const units = ['B','KB','MB','G
 function date(timestamp) { return new Date(timestamp * 1000).toLocaleDateString(I18n.language); }
 function view(name) { state.view = name; for (const node of document.querySelectorAll('.view')) node.classList.toggle('hidden', node.id !== name + '-view'); for (const button of document.querySelectorAll('.nav')) button.classList.toggle('active', button.dataset.view === name); $('#page-label').textContent = t('nav.' + name); }
 for (const button of document.querySelectorAll('.nav')) button.addEventListener('click', () => { view(button.dataset.view); refresh().catch(error => toast(error.message)); });
-function preview(item) {
+let activePlayback = null;
+let pendingPlayback = null;
+function playbackTime(seconds) {
+  const value = Math.floor(seconds);
+  const minutes = Math.floor(value / 60);
+  return (minutes >= 60 ? Math.floor(minutes / 60) + ':' + String(minutes % 60).padStart(2,'0') : minutes) + ':' + String(value % 60).padStart(2,'0');
+}
+function renderResumeChoice() {
+  if (pendingPlayback) $('#preview-resume-message').textContent = t('playback.prompt',{time:playbackTime(pendingPlayback.position)});
+}
+function stopPlayback() {
+  if (!activePlayback) return;
+  const {media,persist} = activePlayback;
+  persist(true); activePlayback = null;
+  media.pause(); media.removeAttribute('src'); media.load();
+}
+function startPlayback(item, position) {
+  pendingPlayback = null; $('#preview-resume').classList.add('hidden');
   const kind = item.type.split('/')[0];
   const media = element(kind === 'image' ? 'img' : kind);
   media.src = '/api/v1/resources/' + item.id + '/file';
-  if (kind !== 'image') { media.controls = true; media.autoplay = true; }
-  else media.alt = item.name;
-  $('#preview-title').textContent = item.name;
+  if (kind === 'image') media.alt = item.name;
+  else {
+    media.controls = true; media.playsInline = true;
+    let ready = false; let lastSaved = -Infinity;
+    const persist = force => {
+      if (!ready || activePlayback?.media !== media) return;
+      const now = performance.now();
+      if (!force && now - lastSaved < 2000) return;
+      PlaybackProgress.save(item,media.currentTime,media.duration,media.ended); lastSaved = now;
+    };
+    activePlayback = {media,persist};
+    media.addEventListener('loadedmetadata', () => {
+      if (activePlayback?.media !== media) return;
+      const validPosition = position > 0 && Number.isFinite(media.duration) && position < media.duration - .5;
+      if (validPosition) media.currentTime = position;
+      else if (position > 0) PlaybackProgress.clear(item);
+      ready = true;
+      media.play().catch(() => {}); // Browser autoplay policies may require pressing Play.
+    },{once:true});
+    media.addEventListener('timeupdate', () => persist(false));
+    for (const event of ['pause','seeked','ended']) media.addEventListener(event, () => persist(true));
+  }
   $('#preview-content').replaceChildren(media);
+}
+function preview(item) {
+  stopPlayback(); pendingPlayback = null;
+  $('#preview-content').replaceChildren(); $('#preview-resume').classList.add('hidden');
+  $('#preview-title').textContent = item.title || item.name;
+  const position = item.type.startsWith('image/') ? 0 : PlaybackProgress.read(item);
+  if (position > 0) {
+    pendingPlayback = {item,position}; renderResumeChoice(); $('#preview-resume').classList.remove('hidden');
+  } else startPlayback(item,0);
   $('#preview').showModal();
 }
+$('#preview-restart').addEventListener('click', () => {
+  if (!pendingPlayback) return;
+  const {item} = pendingPlayback; PlaybackProgress.clear(item); startPlayback(item,0);
+});
+$('#preview-continue').addEventListener('click', () => {
+  if (pendingPlayback) startPlayback(pendingPlayback.item,pendingPlayback.position);
+});
+window.addEventListener('pagehide', () => activePlayback?.persist(true));
+document.addEventListener('visibilitychange', () => { if (document.hidden) activePlayback?.persist(true); });
+window.addEventListener('languagechange', renderResumeChoice);
 $('#close-preview').addEventListener('click', () => $('#preview').close());
-$('#preview').addEventListener('close', () => $('#preview-content').replaceChildren());
+$('#preview').addEventListener('close', () => {
+  stopPlayback(); pendingPlayback = null; $('#preview-content').replaceChildren(); $('#preview-resume').classList.add('hidden');
+});
 $('#preview').addEventListener('click', event => { if (event.target === $('#preview')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.target.close(); } });
 function card(item) {
   const node = element('article', 'card');

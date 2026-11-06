@@ -202,5 +202,9 @@
   "error.server.205": "Resource not found",
   "error.server.206": "Select at most 30 tags",
   "organize.empty-title": "No matching resources",
-  "organize.empty-note": "Try another folder, tag, or search filter."
+  "organize.empty-note": "Try another folder, tag, or search filter.",
+  "playback.restart": "Start over",
+  "playback.continue": "Resume playback",
+  "playback.prompt": "You stopped at {time}. Resume from here?",
+  "playback.local-note": "Playback progress is saved in this browser."
 }
