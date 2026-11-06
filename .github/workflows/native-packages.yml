@@ -1,0 +1,128 @@
+name: Native packages
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/native-packages]
+    tags: ["v*"]
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install packaging
+      - name: Validate release tag against package version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python packaging/release.py --tag "$RELEASE_TAG"
+  build:
+    needs: validate
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            target: windows-x64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: macos-15
+            target: macos-arm64
+          - os: ubuntu-22.04
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Linux runtimes
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install macOS runtimes
+        if: runner.os == 'macOS'
+        run: brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+      - name: Install Windows runtimes
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install ffmpeg --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ffmpeg = Get-ChildItem C:\ProgramData\chocolatey\lib\ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          if (!$ffmpeg) { throw 'FFmpeg binary not found' }
+          $ffmpeg.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install build dependencies
+        run: python -m pip install ".[dev]" "pyinstaller>=6.11,<7"
+      - name: Check code
+        run: python -m ruff check .
+      - name: Test
+        run: python -m pytest -q
+      - name: Install Linux browser libraries
+        if: runner.os == 'Linux'
+        run: python -m playwright install-deps chromium
+      - name: Build standalone application
+        run: python packaging/build.py
+      - name: Smoke test Windows package
+        if: runner.os == 'Windows'
+        run: python packaging/smoke.py dist/Zhenxia/Zhenxia.exe
+      - name: Smoke test Unix package
+        if: runner.os != 'Windows'
+        run: python packaging/smoke.py dist/Zhenxia/Zhenxia
+      - name: Archive package
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            python -c "import shutil; shutil.make_archive('dist/Zhenxia-${{ matrix.target }}', 'zip', 'dist', 'Zhenxia')"
+          else
+            tar -czf dist/Zhenxia-${{ matrix.target }}.tar.gz -C dist Zhenxia
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zhenxia-${{ matrix.target }}
+          path: |
+            dist/Zhenxia-*.zip
+            dist/Zhenxia-*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install packaging
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Zhenxia-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish tested packages and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPO: ${{ github.repository }}
+        run: python packaging/release.py --tag "$RELEASE_TAG" --assets release-assets --repo "$RELEASE_REPO"

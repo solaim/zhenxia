@@ -52,14 +52,15 @@ def cookie_text(domain='.youtube.com'):
 def test_cookies_validation_atomicity_and_platform_isolation(tmp_path):
     cookies = PlatformCookies(tmp_path)
     assert cookies.save('youtube', cookie_text())
-    assert cookies.path('youtube').stat().st_mode & 0o777 == 0o600
+    if os.name == 'posix':
+        assert cookies.path('youtube').stat().st_mode & 0o777 == 0o600
     assert not cookies.configured('x')
-    before = cookies.path('youtube').read_text()
+    before = cookies.path('youtube').read_text(encoding='utf-8')
     with pytest.raises(ValueError, match='域名'):
         cookies.save('youtube', cookie_text('.twitter.com'))
     with pytest.raises(ValueError, match='Netscape'):
         cookies.save('youtube', 'SID=secret')
-    assert cookies.path('youtube').read_text() == before
+    assert cookies.path('youtube').read_text(encoding='utf-8') == before
     with pytest.raises(ValueError):
         cookies.path('../secret')
     assert not list(cookies.root.glob('.*'))
@@ -93,7 +94,7 @@ def test_publish_metadata_search_and_repeat_download(tmp_path):
 def test_non_douyin_numeric_ids_do_not_invent_douyin_sources(tmp_path):
     library = Library(tmp_path / 'media', Store(tmp_path / 'db'))
     (library.root / 'test.mp4').write_bytes(b'video')
-    (library.root / 'test.info.json').write_text(json.dumps({'id': '1234567890123456789'}))
+    (library.root / 'test.info.json').write_text(json.dumps({'id': '1234567890123456789'}), encoding='utf-8')
     library.scan()
     assert library.list()['items'][0]['source_url'] is None
 
@@ -187,7 +188,7 @@ def test_worker_uses_real_ytdlp_to_download_and_collect_metadata(tmp_path, monke
         thread.join()
 
 
-@pytest.mark.skipif(os.name != 'posix', reason='Process group verification uses POSIX signals')
+@pytest.mark.skipif(sys.platform != 'linux', reason='Descendant state verification uses Linux /proc')
 async def test_stopping_worker_kills_descendants(tmp_path):
     from zhenxia.ytdlp import stop_process
     process = await asyncio.create_subprocess_exec(sys.executable, '-c',
@@ -200,8 +201,8 @@ async def test_stopping_worker_kills_descendants(tmp_path):
     # A terminated child can briefly remain a zombie until container init reaps it.
     for _ in range(50):
         try:
-            state = Path(f'/proc/{child_pid}/stat').read_text().split()[2]
-        except FileNotFoundError:
+            state = Path(f'/proc/{child_pid}/stat').read_text(encoding='utf-8').split()[2]
+        except (FileNotFoundError, ProcessLookupError):
             break
         if state == 'Z':
             break

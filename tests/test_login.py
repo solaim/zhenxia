@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -61,7 +62,8 @@ async def test_capture_or_timeout_closes_browser(tmp_path, monkeypatch, authenti
     assert session.state == ('saved' if authenticated else 'expired')
     assert session.credentials.configured('tiktok') == authenticated
     if authenticated:
-        assert session.credentials.path('tiktok').stat().st_mode & 0o777 == 0o600
+        if os.name == 'posix':
+            assert session.credentials.path('tiktok').stat().st_mode & 0o777 == 0o600
     browser.close.assert_awaited_once()
     runtime.stop.assert_awaited_once()
     assert session.page is None

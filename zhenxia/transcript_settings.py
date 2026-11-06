@@ -42,11 +42,11 @@ class TranscriptSettings:
         elif values.get('api_key', '').strip():
             value['api_key'] = values['api_key'].strip()
         path = Path(self.config.config_path)
-        data = yaml.safe_load(path.read_text()) or {}
+        data = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
         data['transcript'] = value
         descriptor, name = tempfile.mkstemp(dir=path.parent, prefix='.config-')
         try:
-            with os.fdopen(descriptor, 'w') as stream:
+            with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
                 yaml.safe_dump(data, stream, allow_unicode=True, sort_keys=False)
             os.replace(name, path)
         finally:

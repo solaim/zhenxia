@@ -6,6 +6,16 @@
 
 支持抖音、YouTube、TikTok、X / Twitter 和哔哩哔哩，提供下载进度、失败重试和中英文界面。
 
+## 桌面包（预览）
+
+正式发布的包可在 [GitHub Releases](https://github.com/solaim/zhenxia/releases) 下载。未发布的预览包可打开 [Native packages 构建页面](https://github.com/solaim/zhenxia/actions/workflows/native-packages.yml)，选择成功的构建，下载 Windows x64、macOS Intel / Apple Silicon 或 Linux x64 / ARM64 对应的产物。下载构建产物需登录 GitHub。
+
+完整解压后，Windows 双击 `Start Zhenxia.bat`，macOS 双击 `Start Zhenxia.command`，Linux 运行 `start-zhenxia.sh`，浏览器会自动打开。使用期间保留终端窗口，按 Ctrl+C 停止服务。包内包含 Python、Chromium、FFmpeg 和 Node.js。
+
+预览包尚未签名，Windows 或 macOS 可能要求确认打开。Linux x64 面向 Ubuntu 22.04+，ARM64 面向 Ubuntu 24.04+ 及兼容桌面发行版，仍需系统提供 Chromium 所需的基础库。目前提供免安装压缩包，并非签名安装程序。
+
+配置与下载保存在 Windows 的 `%LOCALAPPDATA%\Zhenxia`、macOS 的 `~/Library/Application Support/Zhenxia`、Linux 的 `${XDG_DATA_HOME:-~/.local/share}/Zhenxia`。升级时保留该目录即可；暂不自动迁移 Docker 数据。
+
 ## 启动
 
 安装 [Docker](https://www.docker.com/)，然后执行：
@@ -70,3 +80,14 @@ docker compose up -d --build
 默认仅监听本机，适合个人使用，请勿直接暴露公网。
 
 基于 [douyin-downloader](https://github.com/jiji262/douyin-downloader) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 构建，使用 [MIT License](LICENSE)。
+
+## 发布版本
+
+推送 `v*` 标签后，原生包工作流自动发布 GitHub Release。先将 `pyproject.toml` 和 `zhenxia/__init__.py` 中的版本号改为一致并提交，再给该提交打标签：
+
+```bash
+git tag -a v0.1.0 -m "Zhenxia v0.1.0"
+git push origin v0.1.0
+```
+
+标签指向的提交须包含发布工作流（目前在 `feature/native-packages` 分支）。CI 会校验版本、构建并验证五个平台，全部通过后上传压缩包和 `SHA256SUMS.txt`，自动生成发布说明；任一平台失败都不会发布。`v0.2.0-rc.1` 这样的标签发布为预发布版本（代码版本号使用 `0.2.0rc1`）。普通分支推送和手动构建只生成预览产物。Release 附件没有 14 天过期限制，公开仓库的附件无需登录即可下载。使用内置 `GITHUB_TOKEN`，不需要配置个人令牌。

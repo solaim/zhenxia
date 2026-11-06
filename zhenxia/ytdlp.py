@@ -5,12 +5,12 @@ import os
 import re
 import shutil
 import signal
-import sys
 import tempfile
 from pathlib import Path
 
 from .library import MEDIA
 from .progress import report
+from .runtime import worker_command
 
 
 async def stop_process(process):
@@ -22,7 +22,13 @@ async def stop_process(process):
         except ProcessLookupError:
             pass
     else:
-        process.kill()
+        # Kill FFmpeg/Node descendants too, even when packaged without Python on PATH.
+        killer = await asyncio.create_subprocess_exec(
+            'taskkill', '/PID', str(process.pid), '/T', '/F',
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        await killer.wait()
+        if killer.returncode and process.returncode is None:
+            process.kill()
     await process.wait()
 
 
@@ -51,7 +57,7 @@ class YtDlpEngine:
                 copied.chmod(0o600)
                 request['cookiefile'] = str(copied)
             process = await asyncio.create_subprocess_exec(
-                sys.executable, '-m', 'zhenxia.ytdlp_worker',
+                *worker_command(),
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL, start_new_session=os.name == 'posix')
             communication = asyncio.create_task(process.communicate(json.dumps(request).encode()))
@@ -60,7 +66,7 @@ class YtDlpEngine:
                     progress_file = directory / 'progress.json'
                     if progress_file.is_file():
                         try:
-                            report(**json.loads(progress_file.read_text()))
+                            report(**json.loads(progress_file.read_text(encoding='utf-8')))
                         except (OSError, ValueError):
                             pass
                     await asyncio.wait({communication}, timeout=.3)
@@ -72,7 +78,7 @@ class YtDlpEngine:
             result_file = directory / 'result.json'
             if process.returncode or not result_file.is_file():
                 raise RuntimeError('下载进程异常退出，请检查运行环境')
-            result = json.loads(result_file.read_text())
+            result = json.loads(result_file.read_text(encoding='utf-8'))
             if result.get('error'):
                 raise RuntimeError(result['error'])
             return self.publish(platform, directory, result['items'])

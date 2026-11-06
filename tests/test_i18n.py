@@ -19,12 +19,12 @@ class TranslationKeys(HTMLParser):
 def test_dictionaries_have_matching_keys_and_interpolation():
     import re
 
-    zh = json.loads((STATIC / 'locales/zh-CN.json').read_text())
-    en = json.loads((STATIC / 'locales/en.json').read_text())
+    zh = json.loads((STATIC / 'locales/zh-CN.json').read_text(encoding='utf-8'))
+    en = json.loads((STATIC / 'locales/en.json').read_text(encoding='utf-8'))
     assert zh.keys() == en.keys()
     for key in zh:
         assert zh[key] and en[key]
         assert set(re.findall(r'\{\w+\}', zh[key])) == set(re.findall(r'\{\w+\}', en[key]))
     parser = TranslationKeys()
-    parser.feed((STATIC / 'index.html').read_text())
+    parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
     assert parser.keys <= zh.keys()
