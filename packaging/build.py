@@ -18,7 +18,7 @@ def main():
                '--onedir', '--name', 'Zhenxia', '--paths', str(ROOT),
                '--collect-all', 'zhenxia', '--collect-all', 'playwright',
                '--collect-all', 'yt_dlp', '--collect-all', 'yt_dlp_ejs',
-               '--collect-all', 'uvicorn', '--add-data', str(browsers) + os.pathsep + 'browsers']
+               '--collect-all', 'uvicorn']
     # The upstream package exposes these top-level modules and loads strategy code dynamically.
     for module in ('auth', 'config', 'control', 'core', 'storage', 'utils', 'gmssl'):
         command += ['--collect-all', module]
@@ -30,6 +30,9 @@ def main():
     command.append(str(ROOT / 'packaging' / 'entrypoint.py'))
     subprocess.run(command, cwd=ROOT, check=True)
     destination = ROOT / 'dist' / 'Zhenxia'
+    # Preserve Chromium's signed app/framework bundles. PyInstaller's binary
+    # reclassification would strip their structure before ad-hoc signing on macOS.
+    shutil.copytree(browsers, destination / '_internal' / 'browsers', symlinks=True)
     for name in ('LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README.zh-CN.md'):
         shutil.copy2(ROOT / name, destination / name)
     notices = destination / 'runtime-notices'
